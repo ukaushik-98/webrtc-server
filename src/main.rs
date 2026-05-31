@@ -1,4 +1,15 @@
-use axum::{Router, http::StatusCode, routing::any};
+use axum::{
+    Router,
+    extract::{
+        WebSocketUpgrade,
+        ws::{
+            Message::{self},
+            WebSocket,
+        },
+    },
+    response::Response,
+    routing::any,
+};
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -9,6 +20,20 @@ async fn main() -> Result<(), std::io::Error> {
     axum::serve(listener, router).await
 }
 
-async fn ws_handler() -> StatusCode {
-    StatusCode::OK
+async fn ws_handler(ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(ws_callback)
+}
+
+async fn ws_callback(mut socket: WebSocket) {
+    while let Some(maybe_msg) = socket.recv().await {
+        if let Ok(msg) = maybe_msg {
+            let msg_text = msg.to_text().unwrap();
+            let response = format!("Server Echo: {}", msg_text);
+            let resp_msg = Message::Text(response.into());
+            let _ = socket.send(resp_msg).await;
+        } else {
+            // client disconnected
+            return;
+        }
+    }
 }
